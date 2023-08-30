@@ -1,23 +1,57 @@
 # COFpendium
-A compendium of COF-TF interactions inferred from genome-wide motif analysis of publicly available COF ChIP-seq data
+~A compendium of COF-TF interactions inferred from genome-wide motif analysis of publicly available COF ChIP-seq data.~
 
-## Overview
-There currently exists no centralized resource to explore which transcription factors (TFs) recruit transcriptional cofactor (COFs) in genome-wide data. As important mediators of chromatin modification and remodelling, understanding how these COF-TF complexes are recruited to DNA in a cell- and context-specific manner is fundamental to our understanding of gene regulation as a whole. To address this, I developed the COFpendium as a compendium of motif analysis results from uniformly re-processed publicly available COF ChIP-seq datasets. The sets of TF models found underlying COF peaks in a given experiment can be compared across conditions to explore experiment-specific or shared inferred COF-TF complexes. The meta-analysis pipeline is implemented as a workflow using WDL and parallelized/executed using the Broad Institute's Cromwell engine.
+It's really just a pipeline for analyzing ChIP-seq and/or ATAC-seq data these days. All of the COF-TF interaction inference stuff has been moved elsewhere. Specifically, it will download datasets from the SRA (or you can provide your own FASTQ files), remove low quality base calls from the ends of reads using Trimmomatic, run FASTQC to check the overall quality of both the raw reads and the trimmed reads, align reads to the genome using Bowtie2, remove low quality alignments using Samtools (including duplicate alignments and paired end reads where only one mate aligns), and then identify peaks using Genrich.
 
-![COFpendium schematic](COFpendium_schematic.PNG)
+NOTE: This will currently (and probably also futurely) only work on the BU SCC on the "siggers" project. If you don't have access, good luck out there.
 
-Each of the N input datasets listed in the accessions file is fetched from NCBI and remapped to the reference genome. Areas of locally enriched mapped reads ("peaks") are then called and TF binding models found enriched near the summits of these COF peaks are determined. The final step of the COFpendium workflow indexes the motif analysis results by dataset accession and created a single table by concatenating the results together to generate a single resource.
+## Installation
+To make a copy of this repository, run the following in a terminal window:
 
-## File descriptions
-The following are short descriptions of each of the files included in this repository. For more information on how each is used, check out the sections that follow.
-|Name |Description |
-|-----|------------|
-| COFpendium_metadata.tsv | text file that contains the dataset SRA accession numbers and describes metadata for each experiment |
-| COFpendium_qsub.conf | the configuration file used by Cromwell to execute the parallelized workflow on the Boston University Shared Computing Cluster (SCC) |
-| COFpendium_run.wdl | the workflow (WDL) that contains all of the commands to perform the parallelized ChIP-seq meta-analyses |
-| run_COFpendium_cromwell.sh | shell script that loads modules used by the workflow and executes the actual analysis by invoking Cromwell |
+```
+git clone https://github.com/Siggers-Lab/COFpendium.git
+```
+
+This will create a new directory named "COFpendium" that contains all the contents of this repository.
 
 ## Usage
-To reconstitute the COFpendium on the Boston University SCC, clone this repository. From inside the cloned directory, run the following command: <br>
-`qsub -P [projectName] run_COFpendium_cromwell.sh` <br>
-The shell script will load all of the modules needed and execute the COFpendium WDL using the Cromwell engine. Running the shell script submits N parallel jobs (one for each file described in the metadata tsv) that are monitored by Cromwell. Once these have completed, the motif analysis results are concatenated in a final step which produces the full COFpendium.
+### Creating a metadata file
+The COFpendium pipeline requires a tab separated file containing metadata about the experiments you want to process. Siggers lab peeps, there is a Google Drive folder with instructions on making this metadata file; let me know if you can't find it or access it. Other peeps, this isn't going to work for you anyway, so don't waste your time.
+
+### Running the analysis
+The table below gives a brief description of the available options. Additional details for some options are below the table.
+
+| Flag | Description                                                    | Default                      |
+|------|----------------------------------------------------------------|------------------------------|
+| i    | The path to the input COFpendium metadata file                 | -                            |
+| o    | The path to the output directory                               | -                            |
+| r    | The path to the directory with reference files                 | COFpendium/reference_files   |
+| t    | The number of threads to use for preprocessing and aligning    | 1                            |
+| m    | The maximum number of preprocessing jobs to run at once        | 20                           |
+| a    | Should ATAC-seq mode be used?                                  | FALSE                        |
+
+#### -r
+The reference files directory contains a file of species-specific regions that should be excluded during the peak calling step. The file name must be of the format "\<species name\>_excluded_regions.bed", where "\<species name\>" is the common name of the species in question (i.e., "human" rather than "Homo sapiens", and "mouse" rather than "Mus musculus"). The included human file is from [the ENCODE project](https://www.encodeproject.org/files/ENCFF356LFX/@@download/ENCFF356LFX.bed.gz). There is no mouse file included because turns out none of the data I had came from mice, so I never bothered finding one. You're on your own if you want to do mouse stuff, sorry.
+
+#### -t
+I recommend using 16 threads for most datasets. For especially deep sequencing data (>100 million reads), you may want to use 32.
+
+#### -m
+Each preprocessing job creates several very large temporary files. If you have space limitations, set this to a lower number. If you kept using up all your disk space so your advisor bought a bunch more space, setting this to a higher number will allow more jobs to run at the same time and can reduce total wall clock runtime (i.e., the amount of real life time that passes before you get your results).
+
+#### -a
+Including this flag will tell the peak caller (Genrich) to use its ATAC-seq mode. I don't remember what the difference(s) is/are between its default mode and its ATAC-seq mode, but you can probably find it with some Googling, idk.
+
+### Examples
+Run the COFpendium pipeline on ChIP-seq data using 16 threads for each job:
+
+```
+bash /path/to/COFpendium/COFpendium.sh -i /path/to/chip_metadata.tsv -o /path/to/output_dir -t 16
+```
+
+Run the COFpendium pipeline on ATAC-seq data using 32 threads for each job and only allowing 5 jobs to run at once:
+
+```
+bash /path/to/COFpendium/COFpendium.sh -i /path/to/atac_metadata.tsv -o /path/to/output_dir -t 32 -m 5
+```
+
