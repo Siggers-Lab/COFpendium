@@ -10,15 +10,15 @@ module load genrich/0.6
 echo $'\n'"Checking inputs"
 
 # Parse the arguments
-while getopts i:o:r:a: flag
+while getopts i:o:e:a: flag
 do
     case "$flag" in
         # -i flag specifies the input file
         i) input_file="$OPTARG";;
         # -o flag specifies the output directory
         o) out_dir="$OPTARG";;
-        # -r flag specifies the directory with reference files
-        r) reference_dir="$OPTARG";;
+        # -e flag specifies the directory with regions to exclude
+        e) excluded_dir="$OPTARG";;
         # -a flag specifies whether to use ATAC-seq mode
         a) atac_mode="$OPTARG";;
     esac
@@ -32,7 +32,6 @@ IFS=$'\t' read experiment factor species chip_bams control_bams < \
 echo "Factor: $factor"
 echo "Experiment: $experiment"
 echo "Species: $species"
-echo "Using the excluded regions file in: $reference_dir"
 if [ "$atac_mode" == "TRUE" ]
 then
     echo "Using ATAC-seq mode"
@@ -72,10 +71,6 @@ do
     done
 done <<< "$control_bams"
 
-# Create a directory to store temporary files for this ChIP experiment
-chip_dir="$out_dir/tmp/$experiment"
-mkdir -p "$chip_dir"
-
 # Change the species ID to the common name instead of the genus-species name
 if [ "$species" == "Homo sapiens" ]
 then
@@ -83,12 +78,24 @@ then
 elif [ "$species" == "Mus musculus" ]
 then
     species="mouse"
-    echo $'\n'"I don't have excluded regions for mouse datsets yet... :("
-    exit
 else
     echo $'\n'"Unrecognized species :("
     exit 1
 fi
+
+# Get a comma separated list of files of regions to exclude
+excluded="$(ls -1 "$excluded_dir/$species"*.bed | tr "\n" "," | sed 's|,$||g')"
+if [ "$excluded" == "" ]
+then
+    echo "No excluded region files provided"
+else
+    echo "Excluded region file(s): $excluded"
+    excluded="-E $excluded"
+fi
+
+# Create a directory to store temporary files for this ChIP experiment
+chip_dir="$out_dir/tmp/$experiment"
+mkdir -p "$chip_dir"
 
 # Call peaks with Genrich
 echo $'\n'"Calling peaks with Genrich"
@@ -96,20 +103,22 @@ if [ "$atac_mode" == "TRUE" ]
 then
     # Call peaks using the ATAC-seq mode
     Genrich -t "$chip_bams" -c "$control_bams" \
-    -o - -E "$reference_dir/${species}_excluded_regions.bed" -r -y -j -e chrM \
-    | grep -vE "(GL000|KI270|GL456|JH584)" \
-    > "$chip_dir/${factor}_${experiment}.narrowPeak"
+    -o "$chip_dir/${factor}_${experiment}.narrowPeak" \
+    -f "$chip_dir/${factor}_${experiment}.log" \
+    -v -z -r -y -p 0.01 -a 100 -j "$excluded"
 else
     # Call peaks using the default mode
     Genrich -t "$chip_bams" -c "$control_bams" \
-    -o - -E "$reference_dir/${species}_excluded_regions.bed" -r -y -e chrM \
-    | grep -vE "(GL000|KI270|GL456|JH584)" \
-    > "$chip_dir/${factor}_${experiment}.narrowPeak"
+    -o "$chip_dir/${factor}_${experiment}.narrowPeak" \
+    -f "$chip_dir/${factor}_${experiment}.log" \
+    -v -z -r -y -p 0.01 -a 100 "$excluded"
 fi
 
-# Move the output file to out_dir/peaks
+# Move the output files to their final locations
 echo $'\n'"Cleaning up"
+gunzip "$chip_dir/${factor}_${experiment}.narrowPeak.gz"
 mv "$chip_dir/${factor}_${experiment}.narrowPeak" "$out_dir/peaks/"
+mv "$chip_dir/${factor}_${experiment}.log.gz" "$out_dir/peak_logs/"
 
 # Delete the temporary directory for this experiment
 rmdir "$chip_dir"

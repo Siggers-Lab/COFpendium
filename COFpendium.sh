@@ -10,21 +10,21 @@ mm_genome="/projectnb/siggers/genomes/mm10/sequences/genome.fa"
 
 # Set the default values for optional parameters
 script_dir="$(dirname $(realpath $0))"
-reference_dir="$script_dir/reference_files"
+excluded_dir="$script_dir/excluded_regions"
 num_threads=1
 max_concurrent_tasks=20
 atac_mode="FALSE"
 
 # Parse the arguments
-while getopts i:o:r:t:m:a flag
+while getopts i:o:e:t:m:a flag
 do
     case "$flag" in
         # -i flag specifies the input COFpendium metadata file
         i) metadata="$OPTARG";;
         # -o flag specifies the output directory
         o) out_dir="$OPTARG";;
-        # -r flag specifies the directory with reference files
-        r) reference_dir="$OPTARG";;
+        # -e flag specifies the directory with regions to exclude
+        e) excluded_dir="$OPTARG";;
         # -t flag specifies the number of threads to use for preprocessing
         t) num_threads="$OPTARG";;
         # -m flag specifies the max number of preprocessing jobs to run at once
@@ -36,10 +36,10 @@ done
 
 # Make sure the path to the provided directories are the absolute paths
 out_dir="$(realpath $out_dir)"
-reference_dir="$(realpath $reference_dir)"
+excluded_dir="$(realpath $excluded_dir)"
 
 # Create the output directory structure if it doesn't already exist
-mkdir -p "$out_dir"/{fastqc,bam,peaks,summary,logs,tmp}
+mkdir -p "$out_dir"/{fastqc,bam,peaks,peak_logs,summary,logs,tmp}
 
 # Delete anything that already exists in the tmp directory
 rm -rf "$out_dir/tmp/"*
@@ -147,7 +147,7 @@ then
     peaks_jid=$(qsub -terse -N call_peaks -hold_jid "$align_jid" -j y \
     -o "$out_dir/logs" -t 1-"$num_lines" \
     "$script_dir/call_peaks.sh" -i "$out_dir/tmp/no_peaks.tsv" \
-    -o "$out_dir" -r "$reference_dir" -a "$atac_mode")
+    -o "$out_dir" -e "$excluded_dir" -a "$atac_mode")
 
     # Keep only the base job ID
     peaks_jid="${peaks_jid%.*}"
