@@ -14,9 +14,10 @@ excluded_dir="$script_dir/excluded_regions"
 num_threads=1
 max_concurrent_tasks=20
 atac_mode="FALSE"
+request_extra_memory="FALSE"
 
 # Parse the arguments
-while getopts i:o:e:t:m:a flag
+while getopts i:o:e:t:m:ar flag
 do
     case "$flag" in
         # -i flag specifies the input COFpendium metadata file
@@ -31,6 +32,8 @@ do
         m) max_concurrent_tasks="$OPTARG";;
         # -a flag turns on ATAC-seq mode
         a) atac_mode="TRUE";;
+        # -r flag requests more memory for Genrich
+        r) request_extra_memory="TRUE";;
     esac
 done
 
@@ -143,9 +146,17 @@ then
     # Figure out how many jobs to submit based on how many lines are in the file
     num_lines=($(wc -l "$out_dir/tmp/no_peaks.tsv"))
 
+    # Set up the qsub options
+    qsub_options=("-terse" "-N call_peaks" "-hold_jid" "$align_jid" "-j y")
+
+    # Request LOTS of memory if necessary
+    if [ "$request_extra_memory" == "TRUE" ]
+    then
+        qsub_options+=(" -l mem_per_core=8G" "-pe omp 8")
+    fi
+
     # Submit an array job to call peaks
-    peaks_jid=$(qsub -terse -N call_peaks -hold_jid "$align_jid" -j y \
-    -o "$out_dir/logs" -t 1-"$num_lines" \
+    peaks_jid=$(qsub ${qsub_options[@]} -o "$out_dir/logs" -t 1-"$num_lines" \
     "$script_dir/call_peaks.sh" -i "$out_dir/tmp/no_peaks.tsv" \
     -o "$out_dir" -e "$excluded_dir" -a "$atac_mode")
 
