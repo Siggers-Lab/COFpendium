@@ -66,6 +66,6 @@ bash /path/to/COFpendium/COFpendium.sh -i /path/to/chip_metadata.tsv -o /path/to
 Run the COFpendium pipeline on ATAC-seq data using 32 threads for each job and only allowing 5 jobs to run at once:
 
 ```
-bash /path/to/COFpendium/COFpendium.sh -i /path/to/atac_metadata.tsv -o /path/to/output_dir -t 32 -m 5
+bash /path/to/COFpendium/COFpendium.sh -i /path/to/atac_metadata.tsv -o /path/to/output_dir -t 32 -m 5 -a
 ```
 
