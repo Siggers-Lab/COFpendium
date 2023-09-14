@@ -35,6 +35,7 @@ The table below gives a brief description of the available options. Additional d
 | t    | The number of threads to use for preprocessing and aligning    | 1                            |
 | m    | The maximum number of preprocessing jobs to run at once        | 20                           |
 | a    | Should ATAC-seq mode be used?                                  | FALSE                        |
+| r    | Should extra memory be requested?                              | FALSE                        |
 
 #### -e
 The excluded regions directory contains a file (or files) of species-specific regions that should be excluded during the peak calling step. The file name must be of the format "\<species name\>*.bed", where "\<species name\>" is the common name of the species in question (i.e., "human" rather than "Homo sapiens", and "mouse" rather than "Mus musculus"). There are three files included:
@@ -50,7 +51,10 @@ I recommend using 16 threads for most datasets. For especially deep sequencing d
 Each preprocessing job creates several very large temporary files. If you have space limitations, set this to a lower number. If you kept using up all your disk space so your advisor bought a bunch more space, setting this to a higher number will allow more jobs to run at the same time and can reduce total wall clock runtime (i.e., the amount of real life time that passes before you get your results).
 
 #### -a
-Including this flag will tell the peak caller (Genrich) to use its ATAC-seq mode. I don't remember what the difference(s) is/are between its default mode and its ATAC-seq mode, but you can probably find it with some Googling, idk.
+Include this flag to tell the peak caller (Genrich) to use its ATAC-seq mode. I don't remember what the difference(s) is/are between its default mode and its ATAC-seq mode, but you can probably find it with some Googling, idk.
+
+#### -r
+Include this flag to request 8 cores with at least 8 Gb of memory each when submitting the peak calling job to the scheduler (qsub options: `-l mem_per_core=8G -pe omp 8`).
 
 ### Examples
 Run the COFpendium pipeline on ChIP-seq data using 16 threads for each job:
